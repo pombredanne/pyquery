@@ -3,8 +3,41 @@
 # Copyright (C) 2008 - Olivier Lauzanne <olauzanne@gmail.com>
 #
 # Distributed under the BSD license, see LICENSE.txt
+from __future__ import unicode_literals
 from cssselect import xpath as cssselect_xpath
 from cssselect.xpath import ExpressionError
+
+XPathExprOrig = cssselect_xpath.XPathExpr
+
+
+class XPathExpr(XPathExprOrig):
+
+    def __init__(self, path='', element='*', condition='', star_prefix=False):
+        self.path = path
+        self.element = element
+        self.condition = condition
+        self.post_condition = None
+
+    def add_post_condition(self, post_condition):
+        if self.post_condition:
+            self.post_condition = '%s and (%s)' % (self.post_condition,
+                                                   post_condition)
+        else:
+            self.post_condition = post_condition
+
+    def __str__(self):
+        path = XPathExprOrig.__str__(self)
+        if self.post_condition:
+            path = '%s[%s]' % (path, self.post_condition)
+        return path
+
+    def join(self, combiner, other):
+        res = XPathExprOrig.join(self, combiner, other)
+        self.post_condition = other.post_condition
+        return res
+
+
+# keep cssselect < 0.8 compat for now
 
 
 class JQueryTranslator(cssselect_xpath.HTMLTranslator):
@@ -12,6 +45,8 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
     (:first, :last, ...) that are not defined in the css standard,
     but are defined in the jquery API.
     """
+
+    xpathexpr_cls = XPathExpr
 
     def xpath_first_pseudo(self, xpath):
         """Matches the first selected element.
@@ -71,15 +106,17 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
     def xpath_input_pseudo(self, xpath):
         """Matches all input elements.
         """
-        xpath.add_condition("(name(.) = 'input' or name(.) = 'select') "
-        + "or (name(.) = 'textarea' or name(.) = 'button')")
+        xpath.add_condition((
+            "(name(.) = 'input' or name(.) = 'select') "
+            "or (name(.) = 'textarea' or name(.) = 'button')"))
         return xpath
 
     def xpath_button_pseudo(self, xpath):
         """Matches all button input elements and the button element.
         """
-        xpath.add_condition("(@type = 'button' and name(.) = 'input') "
-            + "or name(.) = 'button'")
+        xpath.add_condition((
+            "(@type = 'button' and name(.) = 'input') "
+            "or name(.) = 'button'"))
         return xpath
 
     def xpath_radio_pseudo(self, xpath):
@@ -128,9 +165,9 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
         """Matches all header elelements (h1, ..., h6)
         """
         # this seems kind of brute-force, is there a better way?
-        xpath.add_condition(
-                "(name(.) = 'h1' or name(.) = 'h2' or name (.) = 'h3') "
-        + "or (name(.) = 'h4' or name (.) = 'h5' or name(.) = 'h6')")
+        xpath.add_condition((
+            "(name(.) = 'h1' or name(.) = 'h2' or name (.) = 'h3') "
+            "or (name(.) = 'h4' or name (.) = 'h5' or name(.) = 'h6')"))
         return xpath
 
     def xpath_parent_pseudo(self, xpath):
@@ -150,12 +187,10 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
         """
         if function.argument_types() != ['NUMBER']:
             raise ExpressionError(
-                    "Expected a single integer for :eq(), got %r"
-                    % function.arguments
-                    )
+                "Expected a single integer for :eq(), got %r" % (
+                    function.arguments,))
         value = int(function.arguments[0].value)
-        xpath.add_post_condition(
-                'position() = %s' % (value + 1))
+        xpath.add_post_condition('position() = %s' % (value + 1))
         return xpath
 
     def xpath_gt_function(self, xpath, function):
@@ -163,12 +198,10 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
         """
         if function.argument_types() != ['NUMBER']:
             raise ExpressionError(
-                    "Expected a single integer for :gt(), got %r"
-                    % function.arguments
-                    )
+                "Expected a single integer for :gt(), got %r" % (
+                    function.arguments,))
         value = int(function.arguments[0].value)
-        xpath.add_post_condition(
-                'position() > %s' % (value + 1))
+        xpath.add_post_condition('position() > %s' % (value + 1))
         return xpath
 
     def xpath_lt_function(self, xpath, function):
@@ -176,55 +209,21 @@ class JQueryTranslator(cssselect_xpath.HTMLTranslator):
         """
         if function.argument_types() != ['NUMBER']:
             raise ExpressionError(
-                    "Expected a single integer for :gt(), got %r"
-                    % function.arguments
-                    )
+                "Expected a single integer for :gt(), got %r" % (
+                    function.arguments,))
+
         value = int(function.arguments[0].value)
-        xpath.add_post_condition(
-                'position() < %s' % (value + 1))
+        xpath.add_post_condition('position() < %s' % (value + 1))
         return xpath
 
     def xpath_contains_function(self, xpath, function):
         """Matches all elements that contain the given text
         """
-        if function.argument_types() != ['STRING']:
+        if function.argument_types() not in (['STRING'], ['IDENT']):
             raise ExpressionError(
-                    "Expected a single string for :contains(), got %r"
-                    % function.arguments
-                    )
-        value = str(function.arguments[0].value)
-        xpath.add_post_condition(
-                "contains(text(), '%s')" % value)
+                "Expected a single string or identifier for "
+                ":contains(), got %r" % (function.arguments,))
+
+        value = self.xpath_literal(function.arguments[0].value)
+        xpath.add_post_condition("contains(text(), %s)" % value)
         return xpath
-
-
-XPathExprOrig = cssselect_xpath.XPathExpr
-
-
-class XPathExpr(XPathExprOrig):
-
-    def __init__(self, path='', element='*', condition='', star_prefix=False):
-        self.path = path
-        self.element = element
-        self.condition = condition
-        self.post_condition = None
-
-    def add_post_condition(self, post_condition):
-        if self.post_condition:
-            self.post_condition = '%s and (%s)' % (self.post_condition,
-                                                   post_condition)
-        else:
-            self.post_condition = post_condition
-
-    def __str__(self):
-        path = XPathExprOrig.__str__(self)
-        if self.post_condition:
-            path = '%s[%s]' % (path, self.post_condition)
-        return path
-
-    def join(self, combiner, other):
-        res = XPathExprOrig.join(self, combiner, other)
-        self.post_condition = other.post_condition
-        return res
-
-cssselect_xpath.XPathExpr = XPathExpr

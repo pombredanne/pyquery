@@ -9,11 +9,6 @@ This is not (or at least not yet) a library to produce or interact with
 javascript code. I just liked the jquery API and I missed it in python so I
 told myself "Hey let's make jquery in python". This is the result.
 
-It can be used for many purposes, one idea that I might try in the future is to
-use it for templating with pure http templates that you modify using pyquery.
-I can also be used for web scrapping or for theming applications with
-`Deliverance`_.
-
 The `project`_ is being actively developped on a git repository on Github. I
 have the policy of giving push access to anyone who wants it and then to review
 what he does. So if you want to contribute just email me.
@@ -36,8 +31,9 @@ document, from a file or from an url::
     >>> import urllib
     >>> d = pq("<html></html>")
     >>> d = pq(etree.fromstring("<html></html>"))
-    >>> d = pq(url='http://google.com/')
-    >>> # d = pq(url='http://google.com/', opener=lambda url, **kw: urllib.urlopen(url).read())
+    >>> d = pq(url=your_url)
+    >>> d = pq(url=your_url,
+    ...        opener=lambda url, **kw: urlopen(url).read())
     >>> d = pq(filename=path_to_html_file)
 
 Now d is like the $ in jquery::

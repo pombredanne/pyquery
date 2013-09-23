@@ -1,3 +1,12 @@
+1.2.5
+-----
+
+cssselect compat. See https://github.com/SimonSapin/cssselect/pull/22
+
+tests improvments. no longer require a eth connection.
+
+fix #55
+
 1.2.4
 -----
 
