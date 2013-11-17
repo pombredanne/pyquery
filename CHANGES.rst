@@ -1,5 +1,17 @@
-1.2.5
------
+1.2.7 (unreleased)
+------------------
+
+- Nothing changed yet.
+
+
+1.2.6 (2013-10-11)
+------------------
+
+README_fixt.py was not include in the release. Fix #54.
+
+
+1.2.5 (2013-10-10)
+------------------
 
 cssselect compat. See https://github.com/SimonSapin/cssselect/pull/22
 
