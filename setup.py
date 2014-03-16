@@ -25,7 +25,7 @@ def read(*names):
 long_description = """
 %(README)s
 
-See http://packages.python.org/pyquery/ for the full documentation
+See http://pyquery.rtfd.org/ for the full documentation
 
 News
 ====
@@ -34,7 +34,7 @@ News
 
 """ % read('README', 'CHANGES')
 
-version = '1.2.7.dev0'
+version = '1.2.9.dev0'
 
 setup(name='pyquery',
       version=version,

@@ -34,6 +34,7 @@ except ImportError:
 dirname = os.path.dirname(os.path.abspath(__file__))
 docs = os.path.join(os.path.dirname(dirname), 'docs')
 path_to_html_file = os.path.join(dirname, 'test.html')
+path_to_invalid_file = os.path.join(dirname, 'invalid.xml')
 
 
 class TestUnicode(TestCase):
@@ -176,7 +177,7 @@ class TestSelector(TestCase):
         self.assertEqual(e('div:first').text(), 'node1')
         self.assertEqual(e('div:last').text(), 'node3')
         self.assertEqual(e('div:even').text(), 'node1 node3')
-        self.assertEqual(e('div div:even').text(), None)
+        self.assertEqual(e('div div:even').text(), '')
         self.assertEqual(e('body div:even').text(), 'node1 node3')
         self.assertEqual(e('div:gt(0)').text(), 'node2 node3')
         self.assertEqual(e('div:lt(1)').text(), 'node1')
@@ -204,7 +205,7 @@ class TestSelector(TestCase):
     def test_on_the_fly_dom_creation(self):
         e = self.klass(self.html)
         assert e('<p>Hello world</p>').text() == 'Hello world'
-        assert e('').text() is None
+        assert e('').text() == ''
 
 
 class TestTraversal(TestCase):
@@ -267,6 +268,10 @@ class TestOpener(TestCase):
 
     def test_open_filename(self):
         doc = pq(filename=path_to_html_file)
+        self.assertEqual(len(doc('p#test').text()), 14)
+
+    def test_invalid_filename(self):
+        doc = pq(filename=path_to_invalid_file)
         self.assertEqual(len(doc('p#test').text()), 14)
 
     def test_custom_opener(self):
@@ -366,6 +371,11 @@ class TestManipulating(TestCase):
         val = d('a:last').html()
         assert val == ' My link text 2', repr(val)
 
+    def test_class(self):
+        d = pq('<div></div>')
+        d.removeClass('xx')
+        assert 'class' not in str(d), str(d)
+
 
 class TestHTMLParser(TestCase):
     xml = "<div>I'm valid XML</div>"
@@ -398,7 +408,7 @@ class TestHTMLParser(TestCase):
       Behind you, a three-headed HTML&amp;dash;Entity!
     </div>'''
         d = pq(self.html)
-        d('img').replaceWith('image')
+        d('img').replace_with('image')
         val = d.__html__()
         assert val == expected, (repr(val), repr(expected))
 
@@ -409,7 +419,7 @@ class TestHTMLParser(TestCase):
       Behind you, a three-headed HTML&amp;dash;Entity!
     </div>'''
         d = pq(self.html)
-        d('a').replaceWith(lambda i, e: pq(e).html())
+        d('a').replace_with(lambda i, e: pq(e).html())
         val = d.__html__()
         assert val == expected, (repr(val), repr(expected))
 

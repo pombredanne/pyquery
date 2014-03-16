@@ -9,6 +9,7 @@ from copy import deepcopy
 from lxml import etree
 import lxml.html
 import inspect
+import types
 import sys
 
 
@@ -32,6 +33,26 @@ def func_code(f):
     return f.__code__ if PY3k else f.func_code
 
 
+def with_camel_case_alias(func):
+    """decorator for methods who required a camelcase alias"""
+    _camel_case_aliases.add(func.__name__)
+    return func
+_camel_case_aliases = set()
+
+
+def build_camel_case_aliases(PyQuery):
+    """add camelcase aliases to PyQuery"""
+    for alias in _camel_case_aliases:
+        parts = list(alias.split('_'))
+        name = parts[0] + ''.join([p.title() for p in parts[1:]])
+        func = getattr(PyQuery, alias)
+        f = types.FunctionType(func_code(func), func_globals(func),
+                               name, inspect.getargspec(func).defaults)
+        f.__doc__ = (
+            'Alias for :func:`~pyquery.pyquery.PyQuery.%s`') % func.__name__
+        setattr(PyQuery, name, f.__get__(None, PyQuery))
+
+
 def fromstring(context, parser=None, custom_parser=None):
     """use html parser if we don't have clean xml
     """
@@ -44,6 +65,8 @@ def fromstring(context, parser=None, custom_parser=None):
             try:
                 result = getattr(etree, meth)(context)
             except etree.XMLSyntaxError:
+                if hasattr(context, 'seek'):
+                    context.seek(0)
                 result = getattr(lxml.html, meth)(context)
             if isinstance(result, etree._ElementTree):
                 return [result.getroot()]
@@ -437,29 +460,35 @@ class PyQuery(list):
             for j in this_list:
                 yield j
 
-    def _nextAll(self):
+    def _next_all(self):
         return [e for e in self._traverse('getnext')]
 
-    def nextAll(self, selector=None):
+    @with_camel_case_alias
+    def next_all(self, selector=None):
         """
         >>> h = '<span><p class="hello">Hi</p><p>Bye</p><img scr=""/></span>'
         >>> d = PyQuery(h)
+        >>> d('p:last').next_all()
+        [<img>]
         >>> d('p:last').nextAll()
         [<img>]
         """
-        return self._filter_only(selector, self._nextAll())
+        return self._filter_only(selector, self._next_all())
 
-    def _prevAll(self):
+    def _prev_all(self):
         return [e for e in self._traverse('getprevious')]
 
-    def prevAll(self, selector=None):
+    @with_camel_case_alias
+    def prev_all(self, selector=None):
         """
         >>> h = '<span><p class="hello">Hi</p><p>Bye</p><img scr=""/></span>'
         >>> d = PyQuery(h)
+        >>> d('p:last').prev_all()
+        [<p.hello>]
         >>> d('p:last').prevAll()
         [<p.hello>]
         """
-        return self._filter_only(selector, self._prevAll(), reverse=True)
+        return self._filter_only(selector, self._prev_all(), reverse=True)
 
     def siblings(self, selector=None):
         """
@@ -471,7 +500,7 @@ class PyQuery(list):
          [<img>]
 
         """
-        return self._filter_only(selector, self._prevAll() + self._nextAll())
+        return self._filter_only(selector, self._prev_all() + self._next_all())
 
     def parents(self, selector=None):
         """
@@ -585,16 +614,19 @@ class PyQuery(list):
         """Returns True if selector matches at least one current element, else
         False:
 
-            >>> d = PyQuery('<p class="hello">Hi</p><p>Bye</p><div></div>')
+            >>> d = PyQuery('<p class="hello"><span>Hi</span></p><p>Bye</p>')
             >>> d('p').eq(0).is_('.hello')
             True
+
+            >>> d('p').eq(0).is_('span')
+            False
 
             >>> d('p').eq(1).is_('.hello')
             False
 
         ..
         """
-        return bool(self.__class__(selector, self))
+        return bool(self._filter_only(selector, self))
 
     def find(self, selector):
         """Find elements using selector traversing down from self:
@@ -729,26 +761,32 @@ class PyQuery(list):
         elif value is no_default:
             return self[0].get(attr)
         elif value is None or value == '':
-            return self.removeAttr(attr)
+            return self.remove_attr(attr)
         else:
             for tag in self:
                 tag.set(attr, value)
         return self
 
-    def removeAttr(self, name):
+    @with_camel_case_alias
+    def remove_attr(self, name):
         """Remove an attribute::
 
             >>> d = PyQuery('<div id="myid"></div>')
+            >>> d.remove_attr('id')
+            [<div>]
             >>> d.removeAttr('id')
             [<div>]
 
         ..
         """
         for tag in self:
-            del tag.attrib[name]
+            try:
+                del tag.attrib[name]
+            except KeyError:
+                pass
         return self
 
-    attr = FlexibleElement(pget=attr, pdel=removeAttr)
+    attr = FlexibleElement(pget=attr, pdel=remove_attr)
 
     #######
     # CSS #
@@ -763,10 +801,13 @@ class PyQuery(list):
         """
         return self.attr('width', value)
 
-    def hasClass(self, name):
+    @with_camel_case_alias
+    def has_class(self, name):
         """Return True if element has class::
 
             >>> d = PyQuery('<div class="myclass"></div>')
+            >>> d.has_class('myclass')
+            True
             >>> d.hasClass('myclass')
             True
 
@@ -774,10 +815,13 @@ class PyQuery(list):
         """
         return self.is_('.%s' % name)
 
-    def addClass(self, value):
+    @with_camel_case_alias
+    def add_class(self, value):
         """Add a css class to elements::
 
             >>> d = PyQuery('<div></div>')
+            >>> d.add_class('myclass')
+            [<div.myclass>]
             >>> d.addClass('myclass')
             [<div.myclass>]
 
@@ -790,10 +834,13 @@ class PyQuery(list):
             tag.set('class', ' '.join(classes))
         return self
 
-    def removeClass(self, value):
+    @with_camel_case_alias
+    def remove_class(self, value):
         """Remove a css class to elements::
 
             >>> d = PyQuery('<div class="myclass"></div>')
+            >>> d.remove_class('myclass')
+            [<div>]
             >>> d.removeClass('myclass')
             [<div>]
 
@@ -804,15 +851,22 @@ class PyQuery(list):
             classes = set((tag.get('class') or '').split())
             classes.difference_update(values)
             classes.difference_update([''])
-            tag.set('class', ' '.join(classes))
+            classes = ' '.join(classes)
+            if classes.strip():
+                tag.set('class', classes)
+            elif tag.get('class'):
+                tag.set('class', classes)
         return self
 
-    def toggleClass(self, value):
+    @with_camel_case_alias
+    def toggle_class(self, value):
         """Toggle a css class to elements
 
             >>> d = PyQuery('<div></div>')
-            >>> d.toggleClass('myclass')
+            >>> d.toggle_class('myclass')
             [<div.myclass>]
+            >>> d.toggleClass('myclass')
+            [<div>]
 
         """
         for tag in self:
@@ -965,17 +1019,20 @@ class PyQuery(list):
                 tag.tail = root.tail
         return self
 
-    def outerHtml(self):
+    @with_camel_case_alias
+    def outer_html(self):
         """Get the html representation of the first selected element::
 
             >>> d = PyQuery('<div><span class="red">toto</span> rocks</div>')
             >>> print(d('span'))
             <span class="red">toto</span> rocks
+            >>> print(d('span').outer_html())
+            <span class="red">toto</span>
             >>> print(d('span').outerHtml())
             <span class="red">toto</span>
 
             >>> S = PyQuery('<p>Only <b>me</b> & myself</p>')
-            >>> print(S('b').outerHtml())
+            >>> print(S('b').outer_html())
             <b>me</b>
 
         ..
@@ -1009,7 +1066,7 @@ class PyQuery(list):
 
         if value is no_default:
             if not self:
-                return None
+                return ''
 
             text = []
 
@@ -1072,7 +1129,8 @@ class PyQuery(list):
             root = tag[-len(root):]
         return self
 
-    def appendTo(self, value):
+    @with_camel_case_alias
+    def append_to(self, value):
         """append nodes to value
         """
         value.append(self)
@@ -1096,7 +1154,8 @@ class PyQuery(list):
             root = tag[:len(root)]
         return self
 
-    def prependTo(self, value):
+    @with_camel_case_alias
+    def prepend_to(self, value):
         """prepend nodes to value
         """
         value.prepend(self)
@@ -1118,7 +1177,8 @@ class PyQuery(list):
             root = parent[index:len(root)]
         return self
 
-    def insertAfter(self, value):
+    @with_camel_case_alias
+    def insert_after(self, value):
         """insert nodes after value
         """
         value.after(self)
@@ -1147,7 +1207,8 @@ class PyQuery(list):
             root = parent[index:len(root)]
         return self
 
-    def insertBefore(self, value):
+    @with_camel_case_alias
+    def insert_before(self, value):
         """insert nodes before value
         """
         value.before(self)
@@ -1188,9 +1249,14 @@ class PyQuery(list):
         self[:] = nodes
         return self
 
-    def wrapAll(self, value):
+    @with_camel_case_alias
+    def wrap_all(self, value):
         """Wrap all the elements in the matched set into a single wrapper
         element::
+
+            >>> d = PyQuery('<div><span>Hey</span><span>you !</span></div>')
+            >>> print(d('span').wrap_all('<div id="wrapper"></div>'))
+            <div id="wrapper"><span>Hey</span><span>you !</span></div>
 
             >>> d = PyQuery('<div><span>Hey</span><span>you !</span></div>')
             >>> print(d('span').wrapAll('<div id="wrapper"></div>'))
@@ -1232,9 +1298,21 @@ class PyQuery(list):
         self[:] = [wrapper]
         return self
 
-    def replaceWith(self, value):
-        """replace nodes by value
+    @with_camel_case_alias
+    def replace_with(self, value):
+        """replace nodes by value::
+
+            >>> doc = PyQuery("<html><div /></html>")
+            >>> node = PyQuery("<span />")
+            >>> child = doc.find('div')
+            >>> child.replace_with(node)
+            [<div>]
+            >>> print(doc)
+            <html><span/></html>
+
         """
+        if isinstance(value, PyQuery):
+            value = str(value)
         if hasattr(value, '__call__'):
             for i, element in enumerate(self):
                 self.__class__(element).before(
@@ -1248,13 +1326,14 @@ class PyQuery(list):
                 parent.remove(tag)
         return self
 
-    def replaceAll(self, expr):
+    @with_camel_case_alias
+    def replace_all(self, expr):
         """replace nodes by expr
         """
         if self._parent is no_default:
             raise ValueError(
                 'replaceAll can only be used with an object with parent')
-        self._parent(expr).replaceWith(self)
+        self._parent(expr).replace_with(self)
         return self
 
     def clone(self):
@@ -1346,3 +1425,5 @@ class PyQuery(list):
 
         self('a').each(lambda: self(this).attr('href', urljoin(base_url, self(this).attr('href'))))  # NOQA
         return self
+
+build_camel_case_aliases(PyQuery)

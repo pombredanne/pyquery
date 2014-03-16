@@ -1,7 +1,31 @@
-1.2.7 (unreleased)
+1.2.9 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fixed #19. ``is_()`` was broken.
+
+- Fixed #9. ``.replaceWith(PyQuery element)`` raises error
+
+
+1.2.8 (2013-12-21)
+------------------
+
+- Fixed #22: Open by filename fails when file contains invalid xml
+
+- Bug fix in .remove_class()
+
+
+1.2.7 (2013-12-21)
+------------------
+
+- Use pep8 name for methods but keep an alias for camel case method.
+  Eg: remove_attr and removeAttr works
+  Fix #57
+
+- .text() now return an empty string instead of None if there is no text node.
+  Fix #45
+
+- Fixed #23: removeClass adds class attribute to elements which previously
+  lacked one
 
 
 1.2.6 (2013-10-11)
