@@ -303,7 +303,7 @@ class PyQuery(list):
             ...         '<html xmlns="http://www.w3.org/1999/xhtml"></html>')
             >>> doc
             [<{http://www.w3.org/1999/xhtml}html>]
-            >>> doc.remove_namespaces()
+            >>> doc.xhtml_to_html()
             [<html>]
         """
         try:
@@ -1393,9 +1393,9 @@ class PyQuery(list):
 
         """
         def __setattr__(self, name, func):
-            def fn(self, *args):
+            def fn(self, *args, **kwargs):
                 func_globals(func)['this'] = self
-                return func(*args)
+                return func(*args, **kwargs)
             fn.__name__ = name
             setattr(PyQuery, name, fn)
     fn = Fn()
@@ -1423,7 +1423,12 @@ class PyQuery(list):
                     'You need a base URL to make your links'
                     'absolute. It can be provided by the base_url parameter.'))
 
-        self('a').each(lambda: self(this).attr('href', urljoin(base_url, self(this).attr('href'))))  # NOQA
+        def repl(i, e):
+            return self(e).attr(
+                'href',
+                urljoin(base_url, self(e).attr('href')))
+
+        self('a').each(repl)
         return self
 
 build_camel_case_aliases(PyQuery)

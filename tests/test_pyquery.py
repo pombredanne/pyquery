@@ -309,6 +309,32 @@ class TestCallback(TestCase):
                                      ['Coffee', 'Tea', 'Milk'])
 
 
+class TestHook(TestCase):
+    html = """
+        <ol>
+            <li>Coffee</li>
+            <li>Tea</li>
+            <li>Milk</li>
+        </ol>
+    """
+
+    def test_fn(self):
+        "Example from `PyQuery.Fn` docs."
+        fn = lambda: this.map(lambda i, el: pq(this).outerHtml())
+        pq.fn.listOuterHtml = fn
+        S = pq(self.html)
+        self.assertEqual(S('li').listOuterHtml(),
+                         ['<li>Coffee</li>', '<li>Tea</li>', '<li>Milk</li>'])
+
+    def test_fn_with_kwargs(self):
+        "fn() with keyword arguments."
+        pq.fn.test = lambda p=1: pq(this).eq(p)
+        S = pq(self.html)
+        self.assertEqual(S('li').test(0).text(), 'Coffee')
+        self.assertEqual(S('li').test().text(), 'Tea')
+        self.assertEqual(S('li').test(p=2).text(), 'Milk')
+
+
 class TestAjaxSelector(TestSelector):
     klass = pqa
 
@@ -377,15 +403,32 @@ class TestManipulating(TestCase):
         assert 'class' not in str(d), str(d)
 
 
+class TestMakeLinks(TestCase):
+
+    html = '''
+    <html>
+    <div>
+    <a href="/path_info">with href</a>
+    <a>without href</a>
+    </div>
+    </html>
+    '''
+
+    def test_make_link(self):
+        d = pq(self.html, parser='xml')
+        d.make_links_absolute(base_url='http://example.com')
+        self.assertTrue(len(d('a[href]')), 1)
+        self.assertEqual(d('a[href]').attr('href'),
+                         'http://example.com/path_info')
+
+
 class TestHTMLParser(TestCase):
     xml = "<div>I'm valid XML</div>"
-    html = '''
-    <div class="portlet">
+    html = '''<div class="portlet">
       <a href="/toto">TestimageMy link text</a>
       <a href="/toto2">imageMy link text 2</a>
       Behind you, a three-headed HTML&dash;Entity!
-    </div>
-    '''
+    </div>'''
 
     def test_parser_persistance(self):
         d = pq(self.xml, parser='xml')
