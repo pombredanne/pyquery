@@ -1,4 +1,4 @@
-#-*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 #
 # Copyright (C) 2008 - Olivier Lauzanne <olauzanne@gmail.com>
 #
@@ -6,6 +6,12 @@
 
 from setuptools import setup, find_packages
 import os
+
+
+install_requires = [
+    'lxml>=2.1',
+    'cssselect>0.7.9',
+]
 
 
 def read(*names):
@@ -34,7 +40,7 @@ News
 
 """ % read('README', 'CHANGES')
 
-version = '1.2.9.dev0'
+version = '1.2.14.dev0'
 
 setup(name='pyquery',
       version=version,
@@ -47,9 +53,9 @@ setup(name='pyquery',
           "Programming Language :: Python :: 2.6",
           "Programming Language :: Python :: 2.7",
           "Programming Language :: Python :: 3",
-          "Programming Language :: Python :: 3.2",
           "Programming Language :: Python :: 3.3",
           "Programming Language :: Python :: 3.4",
+          "Programming Language :: Python :: 3.5",
       ],
       keywords='jquery html xml scraping',
       author='Olivier Lauzanne',
@@ -63,10 +69,7 @@ setup(name='pyquery',
       ]),
       include_package_data=True,
       zip_safe=False,
-      install_requires=[
-          'lxml>=2.1',
-          'cssselect',
-      ],
+      install_requires=install_requires,
       entry_points="""
       # -*- Entry points: -*-
       """,

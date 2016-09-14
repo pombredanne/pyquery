@@ -179,7 +179,7 @@ class PyQuery(list):
         else:
             self._translator = self._translator_class(xhtml=False)
 
-        namespaces = kwargs.pop('namespaces', {})
+        self.namespaces = kwargs.pop('namespaces', None)
 
         if kwargs:
             # specific case to get the dom
@@ -239,7 +239,7 @@ class PyQuery(list):
                 xpath = self._css_to_xpath(selector)
                 results = []
                 for tag in elements:
-                    results.extend(tag.xpath(xpath, namespaces=namespaces))
+                    results.extend(tag.xpath(xpath, namespaces=self.namespaces))
                 elements = results
 
         list.__init__(self, elements)
@@ -248,6 +248,10 @@ class PyQuery(list):
         selector = selector.replace('[@', '[')
         return self._translator.css_to_xpath(selector, prefix)
 
+    def _copy(self, *args, **kwargs):
+        kwargs.setdefault('namespaces', self.namespaces)
+        return self.__class__(*args, **kwargs)
+
     def __call__(self, *args, **kwargs):
         """return a new PyQuery instance
         """
@@ -255,13 +259,13 @@ class PyQuery(list):
         if length == 0:
             raise ValueError('You must provide at least a selector')
         if args[0] == '':
-            return self.__class__([])
+            return self._copy([])
         if (len(args) == 1 and
                 (not PY3k and isinstance(args[0], basestring) or
                 (PY3k and isinstance(args[0], str))) and
                 not args[0].startswith('<')):
             args += (self,)
-        result = self.__class__(*args, parent=self, **kwargs)
+        result = self._copy(*args, parent=self, **kwargs)
         return result
 
     # keep original list api prefixed with _
@@ -271,7 +275,7 @@ class PyQuery(list):
     # improve pythonic api
     def __add__(self, other):
         assert isinstance(other, self.__class__)
-        return self.__class__(self[:] + other[:])
+        return self._copy(self[:] + other[:])
 
     def extend(self, other):
         """Extend with anoter PyQuery object"""
@@ -294,7 +298,7 @@ class PyQuery(list):
         else:
             elems = self
         for elem in elems:
-            yield self.__class__(elem)
+            yield self._copy(elem, parent=self)
 
     def xhtml_to_html(self):
         """Remove xhtml namespace:
@@ -415,7 +419,7 @@ class PyQuery(list):
             xpath = self._css_to_xpath(selector, 'self::')
             results = []
             for tag in elements:
-                results.extend(tag.xpath(xpath))
+                results.extend(tag.xpath(xpath, namespaces=self.namespaces))
         if reverse:
             results.reverse()
         if unique:
@@ -424,7 +428,7 @@ class PyQuery(list):
             for item in result_list:
                 if not item in results:
                     results.append(item)
-        return self.__class__(results, **dict(parent=self))
+        return self._copy(results, parent=self)
 
     def parent(self, selector=None):
         return self._filter_only(
@@ -548,11 +552,11 @@ class PyQuery(list):
         result = []
         for current in self:
             while (current is not None and
-                    not self.__class__(current).is_(selector)):
+                    not self._copy(current).is_(selector)):
                 current = current.getparent()
             if current is not None:
                 result.append(current)
-        return self.__class__(result, **dict(parent=self))
+        return self._copy(result, parent=self)
 
     def contents(self):
         """
@@ -564,8 +568,8 @@ class PyQuery(list):
         """
         results = []
         for elem in self:
-            results.extend(elem.xpath('child::text()|child::*'))
-        return self.__class__(results, **dict(parent=self))
+            results.extend(elem.xpath('child::text()|child::*', namespaces=self.namespaces))
+        return self._copy(results, parent=self)
 
     def filter(self, selector):
         """Filter elements in self using selector (string or function):
@@ -597,7 +601,7 @@ class PyQuery(list):
                 f_globals = func_globals(selector)
                 if 'this' in f_globals:
                     del f_globals['this']
-            return self.__class__(elements, **dict(parent=self))
+            return self._copy(elements, parent=self)
 
     def not_(self, selector):
         """Return elements that don't match the given selector:
@@ -606,9 +610,9 @@ class PyQuery(list):
             >>> d('p').not_('.hello')
             [<p>]
         """
-        exclude = set(self.__class__(selector, self))
-        return self.__class__([e for e in self if e not in exclude],
-                              **dict(parent=self))
+        exclude = set(self._copy(selector, self))
+        return self._copy([e for e in self if e not in exclude],
+                              parent=self)
 
     def is_(self, selector):
         """Returns True if selector matches at least one current element, else
@@ -639,13 +643,13 @@ class PyQuery(list):
             [<em>]
         """
         xpath = self._css_to_xpath(selector)
-        results = [child.xpath(xpath) for tag in self
+        results = [child.xpath(xpath, namespaces=self.namespaces) for tag in self
                    for child in tag.getchildren()]
         # Flatten the results
         elements = []
         for r in results:
             elements.extend(r)
-        return self.__class__(elements, **dict(parent=self))
+        return self._copy(elements, parent=self)
 
     def eq(self, index):
         """Return PyQuery of only the element with the provided index::
@@ -660,9 +664,13 @@ class PyQuery(list):
 
         ..
         """
-        # Use slicing to silently handle out of bounds indexes
-        items = self[index:index + 1]
-        return self.__class__(items, **dict(parent=self))
+        # Slicing will return empty list when index=-1
+        # we should handle out of bound by ourselves
+        try:
+            items = self[index]
+        except IndexError:
+            items = []
+        return self._copy(items, parent=self)
 
     def each(self, func):
         """apply func on each nodes
@@ -709,7 +717,7 @@ class PyQuery(list):
             f_globals = func_globals(func)
             if 'this' in f_globals:
                 del f_globals['this']
-        return self.__class__(items, **dict(parent=self))
+        return self._copy(items, parent=self)
 
     @property
     def length(self):
@@ -957,7 +965,44 @@ class PyQuery(list):
             'Youhou'
 
         """
-        return self.attr('value', value) or None
+        def _get_value(tag):
+            # <textarea>
+            if tag.tag == 'textarea':
+                return self._copy(tag).text()
+            # <select>
+            if tag.tag == 'select':
+                selected_option = self._copy(tag)('option[selected]:last')
+                if selected_option:
+                    return selected_option.attr('value')
+                return None
+            # <input> and everything else.
+            return self._copy(tag).attr('value') or None
+
+        def _set_value(pq, value):
+            for tag in pq:
+                # <textarea>
+                if tag.tag == 'textarea':
+                    self._copy(tag).text(value)
+                    continue
+                # <select>
+                if tag.tag == 'select':
+                    def _make_option_selected(_, elem):
+                        pq = self._copy(elem)
+                        if pq.attr('value') == value:
+                            pq.attr('selected', 'selected')
+                        else:
+                            pq.removeAttr('selected')
+                    tag_pq = self._copy(tag)('option') \
+                                 .each(_make_option_selected)
+                    continue
+                # <input> and everything else.
+                self._copy(tag).attr('value', value)
+
+        if value is no_default:
+            return _get_value(self[0])
+        else:
+            _set_value(self, value)
+            return self
 
     def html(self, value=no_default, **kwargs):
         """Get or set the html representation of sub nodes.
@@ -1044,7 +1089,7 @@ class PyQuery(list):
         if e0.tail:
             e0 = deepcopy(e0)
             e0.tail = ''
-        return lxml.html.tostring(e0, encoding=unicode)
+        return etree.tostring(e0, encoding=unicode)
 
     def text(self, value=no_default):
         """Get or set the text representation of sub nodes.
@@ -1097,7 +1142,7 @@ class PyQuery(list):
             root = fromstring(unicode('<root>') + value + unicode('</root>'),
                               self.parser)[0]
         elif isinstance(value, etree._Element):
-            root = self.__class__(value)
+            root = self._copy(value)
         elif isinstance(value, PyQuery):
             root = value
         else:
@@ -1126,7 +1171,6 @@ class PyQuery(list):
             if i > 0:
                 root = deepcopy(list(root))
             tag.extend(root)
-            root = tag[-len(root):]
         return self
 
     @with_camel_case_alias
@@ -1315,13 +1359,13 @@ class PyQuery(list):
             value = str(value)
         if hasattr(value, '__call__'):
             for i, element in enumerate(self):
-                self.__class__(element).before(
+                self._copy(element).before(
                     value(i, element) + (element.tail or ''))
                 parent = element.getparent()
                 parent.remove(element)
         else:
             for tag in self:
-                self.__class__(tag).before(value + (tag.tail or ''))
+                self._copy(tag).before(value + (tag.tail or ''))
                 parent = tag.getparent()
                 parent.remove(tag)
         return self
@@ -1375,7 +1419,7 @@ class PyQuery(list):
                             prev.tail += ' ' + tag.tail
                     parent.remove(tag)
         else:
-            results = self.__class__(expr, self)
+            results = self._copy(expr, self)
             results.remove()
         return self
 
@@ -1423,12 +1467,24 @@ class PyQuery(list):
                     'You need a base URL to make your links'
                     'absolute. It can be provided by the base_url parameter.'))
 
-        def repl(i, e):
-            return self(e).attr(
-                'href',
-                urljoin(base_url, self(e).attr('href')))
+        def repl(attr):
+            def rep(i, e):
+                attr_value = self(e).attr(attr)
+                # when label hasn't such attr, pass
+                if attr_value is None:
+                    return None
 
-        self('a').each(repl)
+                return self(e).attr(attr,
+                    urljoin(base_url, attr_value.strip()))
+            return rep
+
+        self('a').each(repl('href'))
+        self('link').each(repl('href'))
+        self('script').each(repl('src'))
+        self('img').each(repl('src'))
+        self('iframe').each(repl('src'))
+        self('form').each(repl('action'))
+
         return self
 
 build_camel_case_aliases(PyQuery)

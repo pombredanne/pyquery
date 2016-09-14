@@ -1,11 +1,10 @@
-#-*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 #
 # Copyright (C) 2008 - Olivier Lauzanne <olauzanne@gmail.com>
 #
 # Distributed under the BSD license, see LICENSE.txt
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from lxml import etree
 from pyquery.pyquery import PyQuery as pq
 from pyquery.ajax import PyQuery as pqa
@@ -18,6 +17,8 @@ from .compat import u
 from .compat import b
 from .compat import text_type
 from .compat import TestCase
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
 def not_py3k(func):
@@ -46,7 +47,8 @@ class TestUnicode(TestCase):
             self.assertEqual(str(xml), '<html><p>é</p></html>')
             self.assertEqual(str(xml('p:contains("é")')), '<p>é</p>')
         else:
-            self.assertEqual(unicode(xml), u("<html><p>é</p></html>", 'utf-8'))
+            self.assertEqual(unicode(xml),
+                             u("<html><p>é</p></html>", 'utf-8'))
             self.assertEqual(str(xml), '<html><p>&#233;</p></html>')
             self.assertEqual(str(xml(u('p:contains("é")', 'utf8'))),
                              '<p>&#233;</p>')
@@ -135,6 +137,7 @@ class TestSelector(TestCase):
               <h4>Heading 4</h4>
               <h5>Heading 5</h5>
               <h6>Heading 6</h6>
+              <div></div>
             </body>
            </html>
            """
@@ -183,7 +186,7 @@ class TestSelector(TestCase):
         self.assertEqual(e('div:lt(1)').text(), 'node1')
         self.assertEqual(e('div:eq(2)').text(), 'node3')
 
-        #test on the form
+        # test on the form
         e = self.klass(self.html4)
         assert len(e(':disabled')) == 1
         assert len(e('input:enabled')) == 9
@@ -195,12 +198,12 @@ class TestSelector(TestCase):
         assert len(e(':radio')) == 3
         assert len(e(':checkbox')) == 3
 
-        #test on other elements
+        # test on other elements
         e = self.klass(self.html5)
         assert len(e(":header")) == 6
         assert len(e(":parent")) == 2
-        assert len(e(":empty")) == 6
-        assert len(e(":contains('Heading')")) == 6
+        assert len(e(":empty")) == 1
+        assert len(e(":contains('Heading')")) == 8
 
     def test_on_the_fly_dom_creation(self):
         e = self.klass(self.html)
@@ -320,7 +323,7 @@ class TestHook(TestCase):
 
     def test_fn(self):
         "Example from `PyQuery.Fn` docs."
-        fn = lambda: this.map(lambda i, el: pq(this).outerHtml())
+        fn = lambda: this.map(lambda i, el: pq(this).outerHtml())  # NOQA
         pq.fn.listOuterHtml = fn
         S = pq(self.html)
         self.assertEqual(S('li').listOuterHtml(),
@@ -328,7 +331,7 @@ class TestHook(TestCase):
 
     def test_fn_with_kwargs(self):
         "fn() with keyword arguments."
-        pq.fn.test = lambda p=1: pq(this).eq(p)
+        pq.fn.test = lambda p=1: pq(this).eq(p)  # NOQA
         S = pq(self.html)
         self.assertEqual(S('li').test(0).text(), 'Coffee')
         self.assertEqual(S('li').test().text(), 'Tea')
@@ -389,6 +392,39 @@ class TestManipulating(TestCase):
     </div>
     '''
 
+    html2 = '''
+        <input name="spam" value="Spam">
+        <input name="eggs" value="Eggs">
+        <input type="checkbox" value="Bacon">
+        <input type="radio" value="Ham">
+    '''
+
+    html3 = '''
+        <textarea>Spam</textarea>
+    '''
+
+    html4 = '''
+        <select id="first">
+            <option value="spam">Spam</option>
+            <option value="eggs">Eggs</option>
+        </select>
+        <select id="second">
+            <option value="spam">Spam</option>
+            <option value="eggs" selected>Eggs</option>
+            <option value="bacon">Bacon</option>
+        </select>
+        <select id="third">
+        </select>
+    '''
+
+    html5 = '''
+        <div>
+            <input id="first" value="spam">
+            <input id="second" value="eggs">
+            <textarea id="third">bacon</textarea>
+        </div>
+    '''
+
     def test_remove(self):
         d = pq(self.html)
         d('img').remove()
@@ -401,6 +437,54 @@ class TestManipulating(TestCase):
         d = pq('<div></div>')
         d.removeClass('xx')
         assert 'class' not in str(d), str(d)
+
+    def test_val_for_inputs(self):
+        d = pq(self.html2)
+        self.assertEqual(d('input[name="spam"]').val(), 'Spam')
+        self.assertEqual(d('input[name="eggs"]').val(), 'Eggs')
+        self.assertEqual(d('input:checkbox').val(), 'Bacon')
+        self.assertEqual(d('input:radio').val(), 'Ham')
+        d('input[name="spam"]').val('42')
+        d('input[name="eggs"]').val('43')
+        d('input:checkbox').val('44')
+        d('input:radio').val('45')
+        self.assertEqual(d('input[name="spam"]').val(), '42')
+        self.assertEqual(d('input[name="eggs"]').val(), '43')
+        self.assertEqual(d('input:checkbox').val(), '44')
+        self.assertEqual(d('input:radio').val(), '45')
+
+    def test_val_for_textarea(self):
+        d = pq(self.html3)
+        self.assertEqual(d('textarea').val(), 'Spam')
+        self.assertEqual(d('textarea').text(), 'Spam')
+        d('textarea').val('42')
+        self.assertEqual(d('textarea').val(), '42')
+        # Note: jQuery still returns 'Spam' here.
+        self.assertEqual(d('textarea').text(), '42')
+
+    def test_val_for_select(self):
+        d = pq(self.html4)
+        self.assertIsNone(d('#first').val())
+        self.assertEqual(d('#second').val(), 'eggs')
+        self.assertIsNone(d('#third').val())
+        d('#first').val('spam')
+        d('#second').val('bacon')
+        d('#third').val('eggs') # Selecting non-existing option.
+        self.assertEqual(d('#first').val(), 'spam')
+        self.assertEqual(d('#second').val(), 'bacon')
+        self.assertIsNone(d('#third').val())
+        d('#first').val('bacon') # Selecting non-existing option.
+        self.assertIsNone(d('#first').val())
+
+    def test_val_for_multiple_elements(self):
+        d = pq(self.html5)
+        # "Get" returns *first* value.
+        self.assertEqual(d('div > *').val(), 'spam')
+        # "Set" updates *every* value.
+        d('div > *').val('42')
+        self.assertEqual(d('#first').val(), '42')
+        self.assertEqual(d('#second').val(), '42')
+        self.assertEqual(d('#third').val(), '42')
 
 
 class TestMakeLinks(TestCase):
@@ -436,14 +520,6 @@ class TestHTMLParser(TestCase):
         d = pq(self.xml, parser='html')
         d.after(self.html)  # this should not fail
 
-    @not_py3k
-    def test_soup_parser(self):
-        d = pq('<meta><head><title>Hello</head><body onload=crash()>Hi all<p>',
-               parser='soup')
-        self.assertEqual(str(d), (
-            '<html><meta/><head><title>Hello</title></head>'
-            '<body onload="crash()">Hi all<p/></body></html>'))
-
     def test_replaceWith(self):
         expected = '''<div class="portlet">
       <a href="/toto">TestimageMy link text</a>
@@ -472,6 +548,9 @@ class TestXMLNamespace(TestCase):
     <foo xmlns:bar="http://example.com/bar">
     <bar:blah>What</bar:blah>
     <idiot>123</idiot>
+    <baz xmlns="http://example.com/baz" a="b">
+          <subbaz/>
+    </baz>
     </foo>'''
 
     xhtml = '''
@@ -481,17 +560,19 @@ class TestXMLNamespace(TestCase):
     </body>
     </html>'''
 
+    namespaces = {'bar': 'http://example.com/bar', 'baz': 'http://example.com/baz'}
+
     def test_selector(self):
         expected = 'What'
         d = pq(b(self.xml), parser='xml')
         val = d('bar|blah',
-                namespaces={'bar': 'http://example.com/bar'}).text()
+                namespaces=self.namespaces).text()
         self.assertEqual(repr(val), repr(expected))
 
     def test_selector_with_xml(self):
         expected = 'What'
         d = pq('bar|blah', b(self.xml), parser='xml',
-               namespaces={'bar': 'http://example.com/bar'})
+               namespaces=self.namespaces)
         val = d.text()
         self.assertEqual(repr(val), repr(expected))
 
@@ -520,6 +601,16 @@ class TestXMLNamespace(TestCase):
         d = pq(b(self.xml), parser='xml').remove_namespaces()
         val = d('blah').text()
         self.assertEqual(repr(val), repr(expected))
+
+    def test_persistent_namespaces(self):
+        d = pq(b(self.xml), parser='xml', namespaces=self.namespaces)
+        val = d('bar|blah').text()
+        self.assertEqual(repr(val), repr('What'))
+
+    def test_namespace_traversal(self):
+        d = pq(b(self.xml), parser='xml', namespaces=self.namespaces)
+        val = d('baz|subbaz').closest('baz|baz').attr('a')
+        self.assertEqual(repr(val), repr('b'))
 
 
 class TestWebScrapping(TestCase):
